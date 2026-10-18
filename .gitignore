@@ -1,0 +1,13 @@
+# Node e Next.js
+node_modules/
+.next/
+
+# Python e IA
+venv/
+__pycache__/
+backend/uploads/
+backend/separated/
+
+# Variáveis de ambiente
+.env
+.env.local
