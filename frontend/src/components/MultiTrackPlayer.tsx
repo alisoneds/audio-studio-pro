@@ -61,7 +61,6 @@ export default function MultiTrackPlayer({ stems }: { stems: StemFiles }) {
         normalize: true,
         interact: false,
         sampleRate: 8000, 
-        pixelRatio: 1,    
       });
 
       try {
