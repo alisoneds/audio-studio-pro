@@ -2,13 +2,42 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import MultiTrackPlayer from '@/components/MultiTrackPlayer';
-import { UploadCloud, Loader2, Music, Sparkles } from 'lucide-react';
+import { UploadCloud, Loader2, Music, Sparkles, FileAudio } from 'lucide-react';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'ready'>('idle');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [stems, setStems] = useState<any>(null);
+  
+  // Novo estado para controlar o efeito visual do Drag & Drop
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Funções do Drag & Drop
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFile = e.dataTransfer.files[0];
+      // Verifica se é um arquivo de áudio antes de aceitar
+      if (droppedFile.type.startsWith('audio/')) {
+        setFile(droppedFile);
+      } else {
+        alert("Por favor, solte apenas arquivos de áudio válidos (MP3, WAV, FLAC).");
+      }
+    }
+  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -18,12 +47,12 @@ export default function Home() {
     formData.append('file', file);
 
     try {
-      const res = await axios.post('http://localhost:8000/api/upload', formData);
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/upload`, formData);
       setTaskId(res.data.task_id);
       setStatus('processing');
     } catch (error: any) {
       console.error(error);
-      alert('Erro no upload. O backend está rodando?');
+      alert('Erro no upload. O backend no Colab está rodando e a URL está correta?');
       setStatus('idle');
     }
   };
@@ -34,7 +63,7 @@ export default function Home() {
     if (status === 'processing' && taskId) {
       interval = setInterval(async () => {
         try {
-          const res = await axios.get(`http://localhost:8000/api/status/${taskId}`);
+          const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/status/${taskId}`);
           if (res.data.status === 'Concluído') {
             setStems(res.data.data.stems);
             setStatus('ready');
@@ -81,28 +110,72 @@ export default function Home() {
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-cyan-500 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
               
-              <div className="relative border border-zinc-800/60 rounded-3xl p-12 text-center bg-zinc-950/80 backdrop-blur-xl transition-all">
-                <UploadCloud className="mx-auto h-20 w-20 text-indigo-400 mb-6 group-hover:scale-110 transition-transform duration-500" />
-                
-                <label className="block w-full cursor-pointer mb-8">
-                  <span className="sr-only">Escolha o arquivo</span>
-                  <input 
-                    type="file" 
-                    accept="audio/*"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-zinc-400 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 hover:file:text-white file:transition-colors file:cursor-pointer"
-                  />
-                </label>
-
+              {/* ZONA DE DROP (DRAG & DROP) */}
+              <div 
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative border-2 rounded-3xl p-12 text-center backdrop-blur-xl transition-all duration-300 flex flex-col items-center justify-center min-h-[320px] ${
+                  isDragging 
+                    ? 'border-indigo-500 bg-indigo-500/10 scale-[1.02] shadow-[0_0_30px_rgba(79,70,229,0.2)]' 
+                    : file 
+                      ? 'border-emerald-500/50 bg-zinc-950/80' 
+                      : 'border-dashed border-zinc-700/60 bg-zinc-950/80 hover:border-zinc-500'
+                }`}
+              >
+                {file ? (
+                  <div className="flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
+                    <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/50">
+                      <FileAudio className="w-10 h-10 text-emerald-400" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-zinc-200 truncate max-w-xs">{file.name}</p>
+                      <p className="text-sm text-zinc-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                    </div>
+                    <button 
+                      onClick={() => setFile(null)}
+                      className="text-sm text-zinc-400 hover:text-red-400 underline underline-offset-4 transition-colors mt-2"
+                    >
+                      Remover arquivo
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <UploadCloud className={`h-20 w-20 mb-6 transition-all duration-500 ${isDragging ? 'text-indigo-400 scale-110 animate-bounce' : 'text-zinc-500 group-hover:text-indigo-400 group-hover:scale-110'}`} />
+                    <h3 className="text-xl font-bold text-zinc-200 mb-2">
+                      {isDragging ? 'Solte a música aqui!' : 'Arraste e solte o seu áudio'}
+                    </h3>
+                    <p className="text-zinc-500 mb-8">
+                      Suporta WAV, FLAC, MP3 (Máx: 50MB)
+                    </p>
+                    
+                    <label className="block w-auto cursor-pointer">
+                      <span className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-bold py-3 px-6 rounded-full transition-colors border border-zinc-700">
+                        Ou procure no computador
+                      </span>
+                      <input 
+                        type="file" 
+                        accept="audio/*"
+                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+              
+              {/* Botão de Extrair (só aparece após selecionar arquivo) */}
+              <div className={`transition-all duration-500 overflow-hidden ${file ? 'max-h-32 mt-6 opacity-100' : 'max-h-0 mt-0 opacity-0'}`}>
                 <button 
                   onClick={handleUpload}
                   disabled={!file}
-                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-500 hover:shadow-[0_0_30px_rgba(79,70,229,0.3)] disabled:opacity-50 disabled:hover:bg-indigo-600 disabled:hover:shadow-none transition-all"
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-500 hover:shadow-[0_0_30px_rgba(79,70,229,0.3)] transition-all"
                 >
                   <Sparkles size={20} />
                   Extrair Stems com IA
                 </button>
               </div>
+
             </div>
           </div>
         )}
